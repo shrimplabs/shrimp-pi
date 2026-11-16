@@ -1,0 +1,36 @@
+{
+  "piCommand": ["/opt/node/bin/node", "/opt/pi/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"],
+  "provider": "bridge-local",
+  "model": "qwen3-coder-32b",
+  "api": "openai-completions",
+  "baseUrl": "http://127.0.0.1:8080/v1",
+  "apiKeyEnv": "SHRIMP_PI_API_KEY",
+  "modelOptions": {
+    "name": "Qwen3 Coder 32B (local)",
+    "reasoning": false,
+    "contextWindow": 65536,
+    "maxTokens": 8192,
+    "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+  },
+  "runtimePaths": ["/opt/pi", "/opt/node"],
+  "thinkingLevel": null,
+  "noContextFiles": false,
+  "workspaceMode": "clone",
+  "envAllowlist": [],
+  "extraPiArgs": [],
+  "sandbox": {
+    "mode": "bubblewrap",
+    "bwrapPath": "bwrap",
+    "minimalEtc": true,
+    "extraRoBinds": [],
+    "extraWritableBinds": []
+  },
+  "limits": {
+    "toolFailureThreshold": 5,
+    "waitTimeoutSeconds": 300,
+    "maxWaitSeconds": 3600,
+    "runTimeoutSeconds": 1800,
+    "spawnAckSeconds": 60,
+    "maxEvidence": 200
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "piCommand": [
+    "$HOME/.local/share/pi-node/<node-version>/bin/node",
+    "$HOME/.pi/agent/install/releases/<pi-release>/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+  ],
+  "baseUrl": "http://<INFERENCE_HOST>:<PORT>/v1",
+  "model": "<model-name>",
+  "runtimePaths": [
+    "$HOME/.pi/agent/install/releases/<pi-release>",
+    "$HOME/.local/share/pi-node/<node-version>"
+  ],
+  "modelOptions": {
+    "name": "Local model",
+    "reasoning": true,
+    "contextWindow": 262144,
+    "maxTokens": 8192,
+    "compat": {
+      "supportsDeveloperRole": false,
+      "supportsReasoningEffort": false,
+      "thinkingFormat": "qwen-chat-template"
+    }
+  },
+  "sandbox": {
+    "mode": "bubblewrap",
+    "minimalEtc": true
+  },
+  "limits": {
+    "runTimeoutSeconds": 600
+  }
+}

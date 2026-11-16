@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+# shrimp-pi launcher. Node is often not on the PATH of a sandboxed supervisor, so set
+# SHRIMP_PI_NODE=/path/to/node if plain "node" is unavailable. Requires Node >= 22.18
+# (built-in TypeScript type stripping; no build step).
+self=$0
+# Follow symlinks (npm link, npm install -g, ~/.local/bin links) back to the real checkout.
+while [ -L "$self" ]; do
+  link=$(readlink -- "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname -- "$self")/$link ;;
+  esac
+done
+dir=$(CDPATH= cd -- "$(dirname -- "$self")" && pwd)
+bridge_node="${SHRIMP_PI_NODE:-node}"
+if [ -z "${SHRIMP_PI_NODE:-}" ] && ! command -v node >/dev/null 2>&1 && [ -x "$HOME/.local/share/pi-node/current/bin/node" ]; then
+  bridge_node="$HOME/.local/share/pi-node/current/bin/node"
+fi
+if [ -z "${SHRIMP_PI_NODE:-}" ] && ! command -v "$bridge_node" >/dev/null 2>&1; then
+  for candidate in /opt/homebrew/bin/node /usr/local/bin/node; do
+    if [ -x "$candidate" ]; then bridge_node="$candidate"; break; fi
+  done
+fi
+exec "$bridge_node" "$dir/../src/cli.ts" "$@"

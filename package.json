@@ -1,0 +1,16 @@
+{
+  "name": "shrimp-pi",
+  "version": "0.1.0",
+  "description": "Supervisor-agnostic bridge that runs persistent Pi coding workers in isolated sandboxes",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "shrimp-pi": "bin/shrimp-pi"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.ts"
+  }
+}

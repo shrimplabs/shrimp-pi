@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-11",
+  "macOS": "26.5",
+  "arch": "arm64",
+  "node": "v26.10.0",
+  "pi": "1.5.0",
+  "model": "local-model",
+  "sandbox": {
+    "mode": "seatbelt",
+    "detail": "Seatbelt startup probe ok (v26.10.0)",
+    "warnings": [
+      "Seatbelt sandbox-exec is deprecated by Apple; availability is checked at startup.",
+      "Outbound IP network access is unrestricted; Unix sockets and other host files remain denied."
+    ]
+  },
+  "success": true,
+  "sameSession": true,
+  "sameChildPid": true,
+  "sourceUnchanged": true,
+  "workerId": "496c126d-8109-42bc-b75d-e84d079a60f7",
+  "metrics": {
+    "elapsedSeconds": 25.018,
+    "observedRunSeconds": 22.824,
+    "retainedRunCount": 2,
+    "retainedInterventions": 1,
+    "failedToolAttempts": 2,
+    "workerTokens": 32746,
+    "supervisorTokens": null,
+    "testsPassed": null,
+    "testsFailed": null,
+    "accepted": false,
+    "historyScope": "retained runs and interventions; full history remains in raw logs"
+  },
+  "usage": {
+    "input": 7398,
+    "output": 2116,
+    "cacheRead": 23232,
+    "cacheWrite": 0,
+    "totalTokens": 32746,
+    "costUsd": null,
+    "priceEstimateUsd": 0,
+    "source": "pi:get_session_stats",
+    "collectedAt": "2026-11-12T03:03:41.008Z"
+  },
+  "steps": [
+    {
+      "command": "spawn",
+      "state": "RUNNING"
+    },
+    {
+      "command": "wait",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "status",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "review",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "steer",
+      "state": "RUNNING"
+    },
+    {
+      "command": "wait",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "status",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "review",
+      "state": "REVIEW_REQUIRED"
+    },
+    {
+      "command": "accept",
+      "state": "COMPLETED"
+    }
+  ]
+}

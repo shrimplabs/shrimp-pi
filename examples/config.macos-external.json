@@ -1,0 +1,14 @@
+{
+  "piCommand": ["/opt/homebrew/bin/node", "/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"],
+  "provider": "bridge-local",
+  "model": "my-model",
+  "api": "openai-completions",
+  "baseUrl": "https://inference.example.internal/v1",
+  "apiKeyEnv": "MY_ENDPOINT_KEY",
+  "modelOptions": { "contextWindow": 65536, "maxTokens": 8192 },
+  "sandbox": {
+    "mode": "external",
+    "launcher": ["sandbox-exec", "-p", "(version 1)(allow network*)"]
+  },
+  "limits": { "runTimeoutSeconds": 900, "toolFailureThreshold": 5 }
+}

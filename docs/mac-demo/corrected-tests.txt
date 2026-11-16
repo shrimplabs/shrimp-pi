@@ -1,0 +1,15 @@
+✔ adds two positive numbers (0.456917ms)
+✔ adds negative and zero values (0.069959ms)
+✔ throws TypeError for non-number inputs (0.29275ms)
+✔ applies optional offset (0.068083ms)
+✔ offset defaults to zero (0.065458ms)
+✔ throws TypeError for invalid offset (0.085ms)
+✔ throws TypeError for non-finite numbers (0.069958ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 86.372

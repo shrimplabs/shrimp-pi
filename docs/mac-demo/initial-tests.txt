@@ -1,0 +1,12 @@
+✔ adds two positive numbers (0.423084ms)
+✔ adds negative and zero values (0.067834ms)
+✔ throws TypeError for non-number inputs (0.227541ms)
+✔ throws TypeError for non-finite numbers (0.595625ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 99.260917
