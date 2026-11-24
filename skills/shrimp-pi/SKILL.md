@@ -109,6 +109,8 @@ git -C /abs/path/to/repo merge --no-ff shrimp-pi/<id>     # or review/cherry-pic
 - Never `accept --force` or accept work you have not verified from the diff and your own test run.
 - Do not tell the user a task is done because the worker said so; report what you verified.
 - Several workers can run at once (one per task); track each `workerId` and its revision.
+- For several tasks with an order between them (a milestone, a multi-part feature), use the
+  `milestone` skill that ships next to this one: it keeps the plan and gates every merge.
 - Workers have outbound network access but cannot see the user's home directory, the source
   repo, credentials, or other workers. Do not put secrets in task files.
 - Nothing is cleaned up automatically. When the user is finished with a worker, `stop` it; its

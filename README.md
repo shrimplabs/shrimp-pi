@@ -76,6 +76,31 @@ ln -s "$PWD/skills/shrimp-pi" ~/.codex/skills/shrimp-pi    # Codex
 
 Other agents can be pointed at the same file from their `AGENTS.md` or system prompt.
 
+## Milestones: one plan, many workers
+
+One worker handles one task. For work that is several tasks with an order between them,
+[`skills/milestone/SKILL.md`](skills/milestone/SKILL.md) makes the supervising agent the lead
+of a whole milestone: it plans the work as a task graph, hands every ready task to a worker,
+and records how each one ended. `skills/milestone/taskgraph.py` keeps the plan in `.milestone/`
+inside the project (ignored by git) and applies the rules that change it:
+
+- Tasks that do not depend on each other run side by side; two tasks that name the same file
+  are put in sequence.
+- A worker's commits reach the project only through `done --from <its clone>`: brought up to
+  date with the project, the project's check run on them, then a fast-forward. A refusal
+  records nothing, and the worker is still there to be steered with the reason.
+- A failed task is tried again with the failure in its brief, then gets a research task in
+  front of it, then waits for the user. A blocked task waits for the user's reply without
+  spending an attempt. A task that ran out of room hands the rest to a continuation.
+
+```sh
+ln -s "$PWD/skills/milestone" ~/.claude/skills/milestone   # next to the shrimp-pi skill
+```
+
+The script needs Python 3.9+ and git and nothing from this repository's Node code, so the same
+skill also drives a harness's own sub-agents in git worktrees with no Pi worker involved. Its
+tests run with `npm run test:milestone` (needs `pytest`).
+
 ## Supervisor loop (shell)
 
 ```sh

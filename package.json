@@ -11,6 +11,7 @@
     "shrimp-pi": "bin/shrimp-pi"
   },
   "scripts": {
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "test:milestone": "python3 -m pytest test/milestone -q"
   }
 }
