@@ -41,8 +41,18 @@ your terminal; it only reads your final answer plus the git diff it computes its
 6. If you are steered mid-run, the steering message overrides earlier instructions.
 `.trim();
 
-export function buildTaskPrompt(taskText: string): string {
-  return `TASK (from supervisor)\n${taskText.trim()}\n\n${REPORT_INSTRUCTIONS}`;
+/** Told to the worker when its model has a per-reply output limit: a reply cut off there has no report. */
+export function outputLimitNote(maxTokens: number): string {
+  return (
+    `7. Each of your replies is limited to ${maxTokens} output tokens, thinking included. A reply that ` +
+    'reaches the limit is cut off and the supervisor sees no report. Keep thinking brief, and write a ' +
+    'large file in several steps (create it, then append or edit) instead of in one tool call.'
+  );
+}
+
+export function buildTaskPrompt(taskText: string, maxTokens: number | null = null): string {
+  const limit = maxTokens ? `\n${outputLimitNote(maxTokens)}` : '';
+  return `TASK (from supervisor)\n${taskText.trim()}\n\n${REPORT_INSTRUCTIONS}${limit}`;
 }
 
 export function buildResumeNotice(context: { workerId: string; state: string }): string {

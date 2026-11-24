@@ -219,7 +219,7 @@ export class WorkerDaemon {
         return { note: 'recovered; supervisor must steer to resume', alreadyRunning: false };
       }
       const taskText = fs.readFileSync(this.#paths.taskFile, 'utf8');
-      void this.#runTurn('task', buildTaskPrompt(taskText), { steer: false }).catch((err: unknown) =>
+      void this.#runTurn('task', buildTaskPrompt(taskText, outputTokenLimit(this.#config)), { steer: false }).catch((err: unknown) =>
         this.#fatal(`task run failed: ${errMessage(err)}`),
       );
       return { note: 'task prompt submitted', alreadyRunning: false };
@@ -550,6 +550,17 @@ export class WorkerDaemon {
       reason = 'provider_error';
       to = 'FAILED';
       message = `provider/model failure: ${this.#lastAssistantError ?? 'assistant message ended with stopReason error'}`;
+      run.record.outcome = reason;
+    } else if (this.#lastAssistantStop === 'length') {
+      // The reply was cut off by the output-token limit (thinking included). Without this branch it
+      // surfaced as a bare missing_report, and the supervisor had to read the session log to find out why.
+      reason = 'output_truncated';
+      to = 'BLOCKED';
+      const limit = outputTokenLimit(this.#config);
+      message =
+        `the model's reply hit its output-token limit${limit ? ` (maxTokens ${limit})` : ''} before it finished, ` +
+        'so there is no report. Steer it to work in smaller steps (write large files in pieces, keep thinking short), ' +
+        'or raise modelOptions.maxTokens for new workers. All work so far is kept.';
       run.record.outcome = reason;
     } else if (!report.parsed) {
       reason = 'missing_report';
@@ -1147,4 +1158,10 @@ function extractResultText(result: unknown): string | null {
 export async function daemonMain(opts: DaemonOptions): Promise<void> {
   const daemon = new WorkerDaemon(opts);
   await daemon.main();
+}
+
+/** The per-reply output-token limit the worker's model was configured with, if any. */
+export function outputTokenLimit(config: BridgeConfig): number | null {
+  const value = config.modelOptions?.maxTokens;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }

@@ -80,6 +80,7 @@ export function writeTask(handle: Handle, text = 'Add a sum() helper and make th
 }
 
 export type ConfigOptions = {
+  modelOptions?: Record<string, unknown>;
   scenario?: string;
   sandbox?: 'bubblewrap' | 'seatbelt' | 'external' | 'disabled';
   bwrapPath?: string;
@@ -117,6 +118,7 @@ export function writeConfig(handle: Handle, options: ConfigOptions = {}): string
   if (options.apiKeyEnv) config.apiKeyEnv = options.apiKeyEnv;
   if (options.envAllowlist) config.envAllowlist = options.envAllowlist;
   if (options.extraPiArgs) config.extraPiArgs = options.extraPiArgs;
+  if (options.modelOptions) config.modelOptions = options.modelOptions;
   fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
   return file;
 }

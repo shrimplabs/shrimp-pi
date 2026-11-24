@@ -45,6 +45,7 @@ Then act on `state`:
 | `RUNNING` | still working (timed out) | `wait` again with the same `--after` |
 | `REVIEW_REQUIRED` | worker says it is done | **review** (below) |
 | `BLOCKED` | worker asked a question, or `reason: missing_report` | read `attention.message` / `report.questions` (or `lastAssistantText` in `status`), then `steer` with the answer |
+| `BLOCKED`, `reason: output_truncated` | the model's reply hit its output-token limit (thinking included) before it finished | `steer` it to work in smaller steps (write big files in pieces, keep thinking short); for new workers raise `modelOptions.maxTokens` |
 | `FAILED` | daemon died, provider error, run timeout | read `attention.reason`/`lastError`; `recover <id>` then `steer` with "resume: …". A `provider_error` usually means the endpoint is down — check it before resuming |
 | `COMPLETED` / `STOPPED` | terminal | nothing more; spawn a new worker for new work |
 
@@ -100,7 +101,7 @@ git -C /abs/path/to/repo merge --no-ff shrimp-pi/<id>     # or review/cherry-pic
 
 ## Other commands
 
-- `status <id>` — full state, paths (`workspaceDir`, logs), usage, daemon liveness.
+- `status <id>` — full state, the model it runs on (`model`), paths (`workspaceDir`, logs), usage, daemon liveness.
 - `stop <id>` — abort and end the worker; all work and logs are kept.
 - `list` — every worker in the state directory.
 

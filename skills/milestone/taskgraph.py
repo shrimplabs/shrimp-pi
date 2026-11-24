@@ -504,7 +504,38 @@ def cmd_ready(store, a):
         print(_whats_next(g))
 
 
+def _shrimp(*args):
+    """Run the shrimp-pi CLI ($SHRIMP_PI_BIN, or shrimp-pi on PATH) and return its JSON answer."""
+    exe = os.environ.get("SHRIMP_PI_BIN") or "shrimp-pi"
+    try:
+        p = subprocess.run([exe, *args], capture_output=True, text=True)
+    except OSError as e:
+        raise Bad(f"could not run {exe}: {e}")
+    try:
+        answer = json.loads(p.stdout or p.stderr or "{}")
+    except json.JSONDecodeError:
+        answer = {}
+    if p.returncode != 0 or not answer.get("ok", True):
+        raise Bad(f"shrimp-pi {args[0]} failed: {(answer.get('error') or p.stderr or p.stdout).strip()}")
+    return answer
+
+
+def _spawn_worker(store, t, text, config):
+    """Hand a started task's brief to a new shrimp-pi worker in a clone of the task's worktree."""
+    briefs = store.dir / "briefs"
+    briefs.mkdir(exist_ok=True)
+    path = briefs / f"{t['id']}-attempt{t['attempts']}.md"
+    path.write_text(text)
+    repo = t.get("worktree") or str(store.root)
+    args = ["spawn", "--repo", repo, "--task", str(path), "--label", t["id"]]
+    if config:
+        args += ["--config", str(Path(config).expanduser().resolve())]
+    return _shrimp(*args), path
+
+
 def cmd_start(store, a):
+    if a.spawn:
+        a.copy = True
     with store.edit() as g:
         t = task(g, a.id)
         state = label(g, t)
@@ -519,6 +550,28 @@ def cmd_start(store, a):
         t["status"], t["attempts"], t["started"] = "running", t["attempts"] + 1, now()
         text = brief(g, store.root, t)
     store.event("start", t["id"], attempt=t["attempts"])
+    if a.spawn:
+        try:
+            answer, path = _spawn_worker(store, t, text, a.config)
+        except Bad:
+            with store.edit() as g:  # nothing was handed out: the task goes back as it was
+                t = task(g, a.id)
+                t["status"], t["attempts"] = "pending", max(0, t["attempts"] - 1)
+            store.event("release", t["id"], why="spawn failed")
+            raise
+        worker = str(answer.get("workerId", ""))
+        with store.edit() as g:
+            task(g, a.id)["worker"] = worker
+        store.event("spawn", t["id"], worker=worker)
+        out = {"id": t["id"], "worker": worker, "revision": answer.get("revision"),
+               "workspaceDir": answer.get("workspaceDir", ""), "brief_file": str(path)}
+        if a.json:
+            print(json.dumps(out))
+        else:
+            print(f"{t['id']} handed to shrimp-pi worker {worker} (brief: {path})")
+            print(f"next: shrimp-pi wait {worker} --timeout 300 --after {answer.get('revision')}")
+            print(f"then: done {t['id']} --summary \"...\" --from-worker   (after reading `shrimp-pi review {worker}`)")
+        return
     if a.json:
         print(json.dumps({"id": t["id"], "worktree": t.get("worktree", ""), "branch": t.get("branch", ""),
                           "attempt": t["attempts"], "brief": text}))
@@ -560,6 +613,21 @@ def take(t, src: str, ref: str):
                       f"Start the worker's copy from {wt} so it builds on the task's branch.")
 
 
+def _worker_src(store, tid, a):
+    """--from-worker: the workspace of the shrimp-pi worker `start --spawn` recorded for the task."""
+    if not getattr(a, "from_worker", False):
+        return a.src
+    if a.src:
+        raise Bad("give --from or --from-worker, not both")
+    worker = task(store.load(), tid).get("worker")
+    if not worker:
+        raise Bad(f"{tid} has no shrimp-pi worker on record (it was not started with --spawn); use --from <dir>")
+    ws = _shrimp("status", worker).get("workspaceDir")
+    if not ws:
+        raise Bad(f"shrimp-pi status {worker} names no workspace")
+    return ws
+
+
 def _gated(store, tid, merge=True, src="", ref="HEAD"):
     """Run the merge gate for a running task outside the graph lock (a check can take minutes)."""
     g = store.load()
@@ -585,9 +653,24 @@ def _finish(g, t, summary, commit, outcome="done"):
 
 
 def cmd_done(store, a):
+    a.src = _worker_src(store, a.id, a)
     if a.src and a.no_merge:
         raise Bad("--from brings work in to be merged; it does not go with --no-merge")
     commit = _gated(store, a.id, merge=not a.no_merge, src=a.src, ref=a.ref)
+    if a.unverified:
+        # Merged, but the lead's own verification (a slow build, a look at the running program) is still to
+        # come: what waits on the task keeps waiting until `verify`.
+        with store.edit() as g:
+            t = _running(g, a.id)
+            t["status"], t["summary"] = "unverified", a.summary.strip()
+            if commit:
+                t["commit"] = commit
+            t["history"].append({"attempt": t["attempts"], "outcome": "merged_unverified", "at": now(),
+                                 "summary": a.summary.strip()})
+        store.event("merged_unverified", t["id"], commit=commit, summary=a.summary)
+        print(f"{t['id']} merged" + (f" at {commit[:10]}" if commit and t.get("worktree") else "")
+              + f", held until you verify it: `verify {t['id']}`, or `insert-fix {t['id']}` if it is wrong")
+        return
     with store.edit() as g:
         t = _running(g, a.id)
         before = {x["id"] for x in _ready(g)}
@@ -599,6 +682,20 @@ def cmd_done(store, a):
         print("now ready: " + ", ".join(x["id"] for x in opened))
     else:
         print(_whats_next(g))
+
+
+def cmd_verify(store, a):
+    with store.edit() as g:
+        t = task(g, a.id)
+        if t["status"] != "unverified":
+            raise Bad(f"{a.id} is {label(g, t)}; only a task merged with `done --unverified` waits to be verified")
+        before = {x["id"] for x in _ready(g)}
+        summary = t.get("summary", "") + (f" (verified: {a.note.strip()})" if a.note else "")
+        _finish(g, t, summary, t.get("commit", ""), outcome="verified")
+        opened = [x for x in _ready(g) if x["id"] not in before]
+    store.event("verify", t["id"], note=a.note or "")
+    print(f"{t['id']} verified and done")
+    print("now ready: " + ", ".join(x["id"] for x in opened) if opened else _whats_next(g))
 
 
 def cmd_fail(store, a):
@@ -657,6 +754,7 @@ def cmd_unblock(store, a):
 
 
 def cmd_continue(store, a):
+    a.src = _worker_src(store, a.id, a)
     commit = _gated(store, a.id, src=a.src, ref=a.ref)
     with store.edit() as g:
         t = _running(g, a.id)
@@ -680,6 +778,10 @@ def cmd_continue(store, a):
 def cmd_insert_fix(store, a):
     with store.edit() as g:
         t = task(g, a.id)
+        if t["status"] == "unverified":
+            # Merged and found wrong at verification: it stands as done, and the fix comes between it and
+            # everything after it.
+            _finish(g, t, t.get("summary", ""), t.get("commit", ""), outcome="merged_needs_fix")
         if t["status"] != "done":
             raise Bad(f"{a.id} is {label(g, t)}; a fix is inserted after a task that is done")
         movers = [d for d in dependents(g, t["id"]) if d["status"] not in CLOSED]
@@ -757,6 +859,9 @@ def _whats_next(g) -> str:
     ready = [t["id"] for t in tasks if label(g, t) == "ready"]
     if ready:
         return f"Can start now: {', '.join(ready)}."
+    unverified = [t["id"] for t in tasks if t["status"] == "unverified"]
+    if unverified:
+        return f"Waiting for you to verify: {', '.join(unverified)} (`verify <id>`, or `insert-fix <id>`)."
     if any(t["status"] == "running" for t in tasks):
         return "Nothing else can start until a running task finishes."
     held = [t["id"] for t in tasks if t["status"] == "blocked"]
@@ -777,19 +882,21 @@ def cmd_status(store, a):
         print(json.dumps({
             "milestone": g["milestone"], "config": g["config"], "counts": counts,
             "finished": bool(tasks) and not open_,
-            "stalled": bool(open_) and not _ready(g) and not any(t["status"] == "running" for t in tasks),
+            "stalled": bool(open_) and not _ready(g) and not any(t["status"] in ("running", "unverified") for t in tasks),
             "waiting_on_user": [{"id": t["id"], "title": t["title"], **t.get("hold", {})} for t in held],
             "tasks": [{"id": t["id"], "title": t["title"], "type": t["type"], "state": label(g, t),
-                       "deps": t["deps"], "attempts": t["attempts"], "summary": t.get("summary", "")} for t in tasks]}))
+                       "deps": t["deps"], "attempts": t["attempts"], "summary": t.get("summary", ""),
+                       "worker": t.get("worker", "")} for t in tasks]}))
         return
     check = f"   check: {g['config']['check']}" if g["config"].get("check") else ""
     print(f"Milestone: {g['milestone']}{check}")
-    order = ("done", "running", "ready", "waiting", "blocked", "cancelled")
+    order = ("done", "unverified", "running", "ready", "waiting", "blocked", "cancelled")
     print(f"{len(tasks)} tasks: " + ", ".join(f"{counts[k]} {k}" for k in order if counts.get(k)))
     for t in tasks:
         extra = f"  after {', '.join(t['deps'])}" if t["deps"] and t["status"] not in CLOSED else ""
         tries = f"  attempt {t['attempts']}" if t["status"] == "running" or len(t["history"]) > 1 else ""
-        print(f"  {t['id']:<4} {label(g, t):<9} {t['title']}{tries}{extra}")
+        worker = f"  worker {t['worker'][:8]}" if t.get("worker") and t["status"] == "running" else ""
+        print(f"  {t['id']:<4} {label(g, t):<10} {t['title']}{tries}{worker}{extra}")
     if held:
         print("Waiting on the user:")
         for t in held:
@@ -861,13 +968,23 @@ def main(argv=None) -> int:
     cmd("ready", cmd_ready, "tasks that can start now", (("--all",), {"action": "store_true"}), JSON)
     FROM = ((("--from",), {"dest": "src", "default": "",
                            "help": "the worker's own copy of the project; its commits are brought onto the task's branch first"}),
+            (("--from-worker",), {"action": "store_true",
+                                  "help": "like --from, with the workspace of the shrimp-pi worker `start --spawn` recorded"}),
             (("--ref",), {"default": "HEAD", "help": "what to take from --from (default: what is checked out there)"}))
     cmd("start", cmd_start, "mark a ready task running and print its sub-agent brief", ID, JSON,
         (("--copy",), {"action": "store_true",
-                       "help": "the sub-agent works in its own copy of the project (a sandboxed worker), not in the worktree"}))
+                       "help": "the sub-agent works in its own copy of the project (a sandboxed worker), not in the worktree"}),
+        (("--spawn",), {"action": "store_true",
+                        "help": "hand the brief to a new shrimp-pi worker (implies --copy); its id is recorded on the task"}),
+        (("--config",), {"help": "with --spawn: the shrimp-pi config to spawn the worker with (another model)"}))
     cmd("brief", cmd_brief, "print a task's brief again", ID)
     cmd("done", cmd_done, "check, merge and record a finished task", ID, (("--summary",), {"required": True}),
-        (("--no-merge",), {"action": "store_true"}), *FROM)
+        (("--no-merge",), {"action": "store_true"}),
+        (("--unverified",), {"action": "store_true",
+                             "help": "merge now, but hold what waits on it until `verify` (your own check comes later)"}),
+        *FROM)
+    cmd("verify", cmd_verify, "confirm a task merged with `done --unverified`; what waited on it can start", ID,
+        (("--note",), {"help": "what you checked"}))
     cmd("fail", cmd_fail, "record a failed attempt", ID, (("--why",), {"required": True}))
     cmd("blocked", cmd_blocked, "hold a task the agent could not finish", ID, (("--why",), {"required": True}),
         (("--done",), {}), (("--left",), {}))

@@ -120,6 +120,22 @@ function runScenario(kind) {
       send({ type: 'agent_settled', aborted: false });
       return;
     }
+    case 'truncated': {
+      // The reply ran into the output-token limit: no final text, stopReason "length".
+      send({ type: 'agent_start' });
+      send({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'thinking', thinking: 'Planning the whole file in one go...' }],
+          stopReason: 'length',
+          usage: { input: 100, output: 8192, cacheRead: 0, cacheWrite: 0, totalTokens: 8292, cost: { total: 0 } },
+        },
+      });
+      send({ type: 'agent_end', messages: [], willRetry: false });
+      send({ type: 'agent_settled', aborted: false });
+      return;
+    }
     case 'provider_error': {
       send({ type: 'agent_start' });
       send({

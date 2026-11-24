@@ -317,3 +317,12 @@ test('the worker prompt asks for committed work on the current branch and never 
   const steps = [...prompt.matchAll(/^(\d)\. /gm)].map((m) => Number(m[1]));
   assert.deepEqual(steps, [1, 2, 3, 4, 5, 6]);
 });
+
+test('a model with an output-token limit is told about it as the next protocol step', () => {
+  const prompt = buildTaskPrompt('Write a large file.', 8192);
+  assert.match(prompt, /^7\. Each of your replies is limited to 8192 output tokens, thinking included\./m);
+  assert.match(prompt, /write a\s+large file in several steps/);
+  const steps = [...prompt.matchAll(/^(\d)\. /gm)].map((m) => Number(m[1]));
+  assert.deepEqual(steps, [1, 2, 3, 4, 5, 6, 7]);
+  assert.doesNotMatch(buildTaskPrompt('Write a large file.'), /output tokens/, 'no limit configured, no note');
+});

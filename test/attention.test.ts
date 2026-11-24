@@ -11,12 +11,12 @@ after(() => {
   for (const handle of handles) handle.cleanup();
 });
 
-async function start(scenario: string, limits: Record<string, number> = {}, extraPiArgs: string[] = []) {
+async function start(scenario: string, limits: Record<string, number> = {}, extraPiArgs: string[] = [], modelOptions?: Record<string, unknown>) {
   const handle = tempDir();
   handles.push(handle);
   const { repo, head } = makeRepo(handle);
   const task = writeTask(handle);
-  const config = writeConfig(handle, { scenario, limits, extraPiArgs });
+  const config = writeConfig(handle, { scenario, limits, extraPiArgs, modelOptions });
   const stateDir = path.join(handle.dir, 'state');
   fs.mkdirSync(stateDir, { recursive: true });
   const spawned = cli(['spawn', '--repo', repo, '--task', task, '--config', config, '--no-sandbox'], { stateDir });
@@ -61,6 +61,20 @@ test('a checkpoint is attention, not progress', async () => {
   const { stateDir, workerId } = await start('checkpoint');
   const state = await waitForState(stateDir, workerId, ['BLOCKED'], 25_000);
   assert.equal((state.attention as Record<string, unknown>).reason, 'agent_checkpoint');
+});
+
+test('a reply cut off by the output-token limit says so instead of a bare missing report', async () => {
+  const { stateDir, workerId } = await start('truncated', {}, [], { maxTokens: 8192 });
+  const state = await waitForState(stateDir, workerId, ['BLOCKED', 'FAILED'], 25_000);
+  assert.equal(state.state, 'BLOCKED');
+  const attention = state.attention as Record<string, unknown>;
+  assert.equal(attention.reason, 'output_truncated');
+  assert.match(String(attention.message), /output-token limit \(maxTokens 8192\)/);
+  const status = cli(['status', workerId], { stateDir });
+  assert.equal(status.code, 0, status.stderr);
+  const model = status.json?.model as Record<string, unknown>;
+  assert.equal(model.model, 'fake-model', 'status names the model the worker runs on');
+  assert.equal(model.maxTokens, 8192);
 });
 
 test('provider failures become FAILED, not BLOCKED', async () => {

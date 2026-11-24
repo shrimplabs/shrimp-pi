@@ -212,6 +212,7 @@ you explicitly supply at spawn is treated as trusted for clone/checkout.
 | `access_context_mismatch` | You are running the CLI in a different PID/socket namespace or with different permissions than the spawn. Re-run it where you spawned the worker. |
 | `state: FAILED`, `reason: daemon_lost` | The daemon died. `recover <id>` then `steer <id> --message "resume: …"`. |
 | `state: BLOCKED`, `reason: missing_report` | The agent settled without the JSON report; read `lastAssistantText` in `status` and steer it. |
+| `state: BLOCKED`, `reason: output_truncated` | The model's reply hit its output-token limit (`modelOptions.maxTokens`, thinking included) before it could report. Steer it to work in smaller steps, or raise the limit for new workers. Workers are told their limit in the task prompt. |
 | Worker seems stuck | `status <id>` shows `daemon.responsive`; raw frames are in `<worker>/logs/rpc-pi-*.jsonl` and `pi-stderr.log`. |
 
 Development: `node --test test/*.test.ts` (tests create their own temporary repositories and

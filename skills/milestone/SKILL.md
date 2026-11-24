@@ -16,14 +16,17 @@ as this file, keeps it in `.milestone/` inside the project (ignored by git)
 and applies the rules that change it. Call it from anywhere in the project:
 
 ```
-G="python3 <folder of this skill>/taskgraph.py"
-$G status
+tg() { python3 "<folder of this skill>/taskgraph.py" "$@"; }
+tg status
 ```
+
+Use a shell function as above, not `G="python3 …"; $G status`: zsh (the macOS
+default) does not split a variable into words, so that form fails there.
 
 It needs Python 3.9+ and git, nothing else. Every command prints what it did
 and what can happen next, so read its output instead of keeping your own list.
 
-If `$G status` shows a milestone already in progress, you are resuming: go
+If `tg status` shows a milestone already in progress, you are resuming: go
 to "Picking up again" below.
 
 ## 1. Plan
@@ -33,7 +36,7 @@ what the milestone needs. Then:
 
 1. Find the command that tells you the project still works (its test suite,
    a build, a linter) and start the milestone with it:
-   `$G init "<milestone>" --check "<command>"`. The check runs inside a
+   `tg init "<milestone>" --check "<command>"`. The check runs inside a
    task's worktree before its branch is merged, so it must work from a fresh
    checkout; `$MILESTONE_ROOT` points at the main checkout if it needs
    something that is not in git (a virtualenv, an installed dependency
@@ -41,7 +44,7 @@ what the milestone needs. Then:
    first task. With no usable check, leave it out and review each branch
    yourself before recording it done.
 2. Write the tasks to a JSON file and add them in one call:
-   `$G add --file tasks.json`
+   `tg add --file tasks.json`
 
 ```json
 [
@@ -67,22 +70,22 @@ What makes a good task:
   be planned. A research task changes nothing; its summary is handed to the
   tasks that depend on it.
 
-Show the user the plan in a few lines (`$G status`) and start. Ask first
+Show the user the plan in a few lines (`tg status`) and start. Ask first
 only when the milestone leaves a real choice open that is theirs to make.
 
 ## 2. Run
 
-Repeat until `$G status` says all tasks are done, or that nothing can run
+Repeat until `tg status` says all tasks are done, or that nothing can run
 until the user answers:
 
-1. `$G ready` lists the tasks that can start now, no more than the parallel
+1. `tg ready` lists the tasks that can start now, no more than the parallel
    limit allows.
-2. For each one, `$G start <id>`. This creates the task's worktree and
+2. For each one, `tg start <id>`. This creates the task's worktree and
    branch and prints its brief. Start a sub-agent with **that brief, whole
    and unchanged, as its prompt**. The brief already carries the worktree
    path, the check, what earlier tasks produced, earlier failures and how to
    end. Add nothing that contradicts it; if a task needs extra guidance, put
-   it there with `$G note <id> "<text>"` before starting.
+   it there with `tg note <id> "<text>"` before starting.
 3. Wait for a sub-agent to finish. Do not poll or watch them work.
 4. Read its final message and record the outcome (next section).
 5. Go to 1.
@@ -96,7 +99,7 @@ Starting sub-agents:
   the usual choice for well-described tasks.
 - **Other harnesses:** whatever starts a separate agent run with a prompt
   (a sub-agent tool, or a headless run of the same CLI started in the
-  task's worktree). If only one can run at a time, `$G set max_parallel 1`.
+  task's worktree). If only one can run at a time, `tg set max_parallel 1`.
 - **Sandboxed workers that get their own clone** (Pi workers through
   shrimp-pi): see "Workers in their own copy" below.
 
@@ -110,15 +113,23 @@ or the task was risky.
 
 | The agent says | You run | What changes |
 |---|---|---|
-| done | `$G done <id> --summary "<what changed>"` | Its branch is brought up to date with the project, the check is run on it, and the project moves forward to it. Tasks waiting on it become ready. |
-| failed | `$G fail <id> --why "<what was tried and what happened>"` | Tried again with the failure in the next brief. After 3 failures a research task is put in front of it; if it still fails after that, it waits for the user. |
-| blocked | `$G blocked <id> --why "<what it needs>" --done "<…>" --left "<…>"` | Held, no attempt spent. Tasks after it keep waiting. Tell the user (below). |
-| continue | `$G continue <id> --summary "<done so far>" --left "<what is left>"` | What exists is checked and merged; a new task takes the rest and everything that waited on the old task waits on the new one. |
+| done | `tg done <id> --summary "<what changed>"` | Its branch is brought up to date with the project, the check is run on it, and the project moves forward to it. Tasks waiting on it become ready. |
+| failed | `tg fail <id> --why "<what was tried and what happened>"` | Tried again with the failure in the next brief. After 3 failures a research task is put in front of it; if it still fails after that, it waits for the user. |
+| blocked | `tg blocked <id> --why "<what it needs>" --done "<…>" --left "<…>"` | Held, no attempt spent. Tasks after it keep waiting. Tell the user (below). |
+| continue | `tg continue <id> --summary "<done so far>" --left "<what is left>"` | What exists is checked and merged; a new task takes the rest and everything that waited on the old task waits on the new one. |
+
+**When your real check is slow or manual** (a full engine build, looking at the
+running program), leave `--check` empty and record a finished task with
+`tg done <id> --summary "…" --unverified`: it is merged at once, but what
+waits on it stays waiting until you have checked it yourself and run
+`tg verify <id> --note "<what you checked>"`. If it turns out wrong,
+`tg insert-fix <id> …` puts the fix first instead. `status` lists what is
+waiting for you to verify.
 
 `done` and `continue` can refuse (exit code 2) and record nothing: the
 branch has uncommitted work, conflicts with the project, or fails the
 check. The project is untouched when that happens. The message says why;
-normally you pass that reason to `$G fail <id> --why "…"`, and the next
+normally you pass that reason to `tg fail <id> --why "…"`, and the next
 attempt gets the same worktree and the reason. If the reason is not the
 agent's fault (the check itself is broken), fix that instead.
 
@@ -128,16 +139,16 @@ with what you can see as the reason.
 Things the graph cannot know and you can:
 
 - **NOTICED.** When a report lists a problem outside its task, decide: a
-  new task (`$G add "<title>" --desc … --files … --after <id>`), or nothing.
-- **A merged task turns out wrong.** `$G insert-fix <id> --title "<what to
+  new task (`tg add "<title>" --desc … --files … --after <id>`), or nothing.
+- **A merged task turns out wrong.** `tg insert-fix <id> --title "<what to
   fix>" --desc "…"` puts a fix between that task and everything after it.
   It is expected to touch the same files as the task it fixes; name them
   with `--files` when the fix reaches further.
 - **A problem that was fixed comes back.** Add it with `--same-as <the task
   that fixed it>`. The new brief then shows what was already tried, and the
   second time it comes back a research task runs first.
-- **The plan was wrong.** Change it: `$G add`, `$G cancel <id> --why …`,
-  `$G dep add|rm <id> <dep>`. A plan that no longer matches the work is worse
+- **The plan was wrong.** Change it: `tg add`, `tg cancel <id> --why …`,
+  `tg dep add|rm <id> <dep>`. A plan that no longer matches the work is worse
   than a changed plan.
 - **The same failure twice.** Before a third attempt, read the two reasons.
   If the task description is the problem, fix the description with a note
@@ -152,7 +163,7 @@ and do not solve it yourself by lowering the bar.
 
 When a task is held, tell the user in a few lines: which task, what was
 done, what is left, what is needed. Keep running whatever else is ready
-while you wait. When they answer: `$G unblock <id> --reply "<their answer>"`
+while you wait. When they answer: `tg unblock <id> --reply "<their answer>"`
 and the next agent on that task starts from the report and the reply.
 
 If several things need the user, bring them together in one message.
@@ -172,7 +183,7 @@ another model (a cheaper or a local one) while you stay the lead. The
 `shrimp-pi` skill explains its commands; this is how they fit the loop. You
 can mix: `--copy` is chosen per start.
 
-**Start.** `$G start <id> --copy --json` gives a brief that names no path
+**Start.** `tg start <id> --copy --json` gives a brief that names no path
 and leaves the format of the final report to the worker's own system. Save
 the brief to a file and spawn from the task's worktree, not from the
 project:
@@ -189,6 +200,14 @@ from the project folder.
 The shell that spawns must export the variable the shrimp-pi config names
 as `apiKeyEnv`; a worker without it fails its first model call.
 
+**Or in one step:** `tg start <id> --spawn [--config <shrimp-pi config>]`
+does the above: it writes the brief to `.milestone/briefs/`, spawns the worker
+from the right folder with the task id as its label, records the worker id on
+the task and prints the `wait` to run next. `--config` picks another model for
+this task. When the worker is done, `--from-worker` in place of
+`--from <workspaceDir>` takes its work by the recorded id. `shrimp-pi` is found
+on `PATH`, or set `$SHRIMP_PI_BIN`.
+
 **Wait** with `shrimp-pi wait <worker> --timeout 300 --after <revision>`,
 in the background when several workers run.
 
@@ -197,19 +216,19 @@ ran are measured, the worker's own report is a claim. Then:
 
 | The worker | You run |
 |---|---|
-| reports its work ready for review | `$G done <id> --summary "…" --from <workspaceDir>` |
-| reports a checkpoint: more than one run | `$G continue <id> --summary "…" --left "…" --from <workspaceDir>` |
+| reports its work ready for review | `tg done <id> --summary "…" --from <workspaceDir>` |
+| reports a checkpoint: more than one run | `tg continue <id> --summary "…" --left "…" --from <workspaceDir>` |
 | asks something the brief or the plan answers | `shrimp-pi steer <worker> --message "…"`, wait again. Nothing to record. |
-| is blocked on what only the user can give | `$G blocked <id> …` and tell the user. After `$G unblock`, `$G start <id> --copy` and steer the same worker with the reply; spawn a new one only if it is gone. |
-| tried and says it does not work | `$G fail <id> --why "…"` |
-| died (`FAILED`: daemon lost, provider error, timeout) | Not the task's fault. `shrimp-pi recover <worker>` and steer it to resume; if that fails, `$G release <id>`, which spends no attempt. |
+| is blocked on what only the user can give | `tg blocked <id> …` and tell the user. After `tg unblock`, `tg start <id> --copy` and steer the same worker with the reply; spawn a new one only if it is gone. |
+| tried and says it does not work | `tg fail <id> --why "…"` |
+| died (`FAILED`: daemon lost, provider error, timeout) | Not the task's fault. `shrimp-pi recover <worker>` and steer it to resume; if that fails, `tg release <id>`, which spends no attempt. |
 
 `--from` brings the worker's commits onto the task's branch, then the usual
 gate runs: up to date with the project, check, merge. If it refuses
 (uncommitted files, a failing check), the worker is still there with its
 whole context: steer it with the refusal message (the folder it names is
 the worker's current directory), wait, and record again. That costs no
-attempt. Use `$G fail` when steering has stopped helping.
+attempt. Use `tg fail` when steering has stopped helping.
 
 Once a task is recorded, `shrimp-pi accept <worker> --note "merged as <id>"`
 and `shrimp-pi stop <worker>`. Its folder is kept; nothing is cleaned up
@@ -219,15 +238,15 @@ Two things differ from a worktree sub-agent: the worker cannot reach
 `$MILESTONE_ROOT`, so a check that needs something outside git (a
 virtualenv in the main checkout) runs only at the gate, not in the
 worker; and the parallel limit should be what the model endpoint can
-serve (`$G set max_parallel <n>`).
+serve (`tg set max_parallel <n>`).
 
 ## Picking up again
 
-The graph survives a closed session. On return, `$G status`:
+The graph survives a closed session. On return, `tg status`:
 
 - A task shown as `running` whose agent is gone: look at its worktree. If
   the work is complete and committed, record it `done`; otherwise
-  `$G release <id>` returns it to the queue without spending an attempt.
+  `tg release <id>` returns it to the queue without spending an attempt.
 - With shrimp-pi workers, `shrimp-pi list` shows which are still alive
   (the label is the task id); wait on those instead of releasing them.
 - Then continue the loop in section 2.
@@ -238,9 +257,11 @@ The graph survives a closed session. On return, `$G status`:
 init "<title>" [--check CMD] [--max-parallel N] [--max-attempts N] [--no-worktrees]
 add --file tasks.json | add "<title>" [--desc] [--type] [--after ID] [--files a,b] [--done-when] [--same-as ID]
 ready [--all] [--json]        start ID [--json] [--copy]      brief ID
-done ID --summary S [--no-merge] [--from DIR [--ref R]]       fail ID --why S
+start ID --spawn [--config FILE] [--json]
+done ID --summary S [--no-merge] [--unverified] [--from DIR [--ref R] | --from-worker]
+verify ID [--note S]                                          fail ID --why S
 blocked ID --why S [--done S] [--left S]      unblock ID --reply S
-continue ID --summary S --left S [--title S] [--from DIR [--ref R]]
+continue ID --summary S --left S [--title S] [--from DIR [--ref R] | --from-worker]
 insert-fix ID --title S [--desc S] [--files a,b]
 cancel ID --why S    release ID    note ID "text"    dep add|rm ID DEP
 set KEY VALUE        status [--json]    show ID      log [-n N]

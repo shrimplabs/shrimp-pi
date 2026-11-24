@@ -466,3 +466,87 @@ def test_archive_makes_room_for_the_next_milestone(ms):
     tg(ms, "archive")
     assert list((ms / ".milestone" / "archive").glob("*/graph.json"))
     tg(ms, "init", "Ship 0.4")
+
+
+# ---------------------------------------------------------------- merge now, verify later
+
+def test_unverified_merge_holds_what_waits_until_verify(ms):
+    add(ms, [{"title": "a"}, {"title": "b", "depends_on": [0]}])
+    tg(ms, "start", "t1")
+    commit(wt_of(ms, "t1"), "a.txt")
+    out = tg(ms, "done", "t1", "--summary", "a exists", "--unverified")
+    assert "held until you verify it" in out and (ms / "a.txt").exists()
+    tasks, s = state(ms)
+    assert tasks["t1"]["state"] == "unverified" and tasks["t2"]["state"] == "waiting" and not s["stalled"]
+    assert "Waiting for you to verify: t1" in tg(ms, "status")
+    assert "only a task merged" in tg(ms, "verify", "t2", rc=1)
+    out = tg(ms, "verify", "t1", "--note", "built and ran it")
+    assert "now ready: t2" in out
+    assert state(ms)[0]["t1"]["summary"] == "a exists (verified: built and ran it)"
+
+
+def test_insert_fix_on_an_unverified_task_lets_the_fix_run_next(ms):
+    add(ms, [{"title": "a", "files": ["a.txt"]}, {"title": "b", "depends_on": [0]}])
+    tg(ms, "start", "t1")
+    commit(wt_of(ms, "t1"), "a.txt")
+    tg(ms, "done", "t1", "--summary", "a", "--unverified")
+    tg(ms, "insert-fix", "t1", "--title", "a is off by one")
+    tasks, _ = state(ms)
+    assert tasks["t1"]["state"] == "done" and tasks["t3"]["state"] == "ready" and tasks["t2"]["state"] == "waiting"
+
+
+# ---------------------------------------------------------------- spawning shrimp-pi workers from start
+
+def fake_shrimp(tmp_path, workspace):
+    """A stand-in shrimp-pi: records its arguments and answers spawn and status like the real one."""
+    log = tmp_path / "shrimp-calls.jsonl"
+    exe = tmp_path / "fake-shrimp-pi"
+    exe.write_text(f"""#!{sys.executable}
+import json, sys
+open({str(log)!r}, "a").write(json.dumps(sys.argv[1:]) + "\\n")
+cmd = sys.argv[1]
+if cmd == "spawn":
+    print(json.dumps({{"ok": True, "workerId": "w-1234567890", "revision": 2, "workspaceDir": {str(workspace)!r}}}))
+elif cmd == "status":
+    print(json.dumps({{"ok": True, "workerId": sys.argv[2], "workspaceDir": {str(workspace)!r}}}))
+else:
+    print(json.dumps({{"ok": False, "error": "unexpected"}})); sys.exit(1)
+""")
+    exe.chmod(0o755)
+    return exe, log
+
+
+def test_start_spawn_hands_the_brief_to_a_worker_and_done_takes_its_work(ms, tmp_path):
+    add(ms, [{"title": "a", "desc": "make a.txt"}, {"title": "b", "depends_on": [0]}])
+    clone = tmp_path / "worker"
+    exe, log = fake_shrimp(tmp_path, clone)
+    ENV["SHRIMP_PI_BIN"] = str(exe)
+    try:
+        out = json.loads(tg(ms, "start", "t1", "--spawn", "--json", "--config", "other-model.json"))
+        assert out["worker"] == "w-1234567890" and out["revision"] == 2
+        spawn = json.loads(log.read_text().splitlines()[0])
+        assert spawn[:3] == ["spawn", "--repo", str(wt_of(ms, "t1"))] and "--label" in spawn and "t1" in spawn
+        assert spawn[spawn.index("--config") + 1].endswith("other-model.json")
+        brief = Path(spawn[spawn.index("--task") + 1]).read_text()
+        assert "make a.txt" in brief and "your own copy of the project" in brief
+        assert state(ms)[0]["t1"]["worker"] == "w-1234567890"
+        sh(tmp_path, "git", "clone", "-q", "--no-hardlinks", str(wt_of(ms, "t1")), str(clone))
+        commit(clone, "a.txt")
+        out = tg(ms, "done", "t1", "--summary", "a exists", "--from-worker")
+        assert "merged at" in out and "now ready: t2" in out and (ms / "a.txt").exists()
+        assert "not both" in tg(ms, "done", "t2", "--summary", "x", "--from", str(clone), "--from-worker", rc=1)
+    finally:
+        ENV.pop("SHRIMP_PI_BIN", None)
+
+
+def test_a_failed_spawn_puts_the_task_back_without_spending_an_attempt(ms, tmp_path):
+    add(ms, [{"title": "a"}])
+    ENV["SHRIMP_PI_BIN"] = str(tmp_path / "no-such-shrimp-pi")
+    try:
+        assert "could not run" in tg(ms, "start", "t1", "--spawn", rc=1)
+    finally:
+        ENV.pop("SHRIMP_PI_BIN", None)
+    tasks, _ = state(ms)
+    assert tasks["t1"]["state"] == "ready" and tasks["t1"]["attempts"] == 0
+    tg(ms, "start", "t1", "--copy")
+    assert "no shrimp-pi worker on record" in tg(ms, "done", "t1", "--summary", "s", "--from-worker", rc=1)

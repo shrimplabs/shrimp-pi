@@ -548,6 +548,21 @@ async function cmdSpawn(flags: Flags): Promise<void> {
   });
 }
 
+/** Which model a worker runs on, from the config snapshot it was spawned with (no secrets: those are env names only). */
+function workerModel(configSnapshot: string): { provider: string | null; model: string | null; maxTokens: number | null } | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(configSnapshot, 'utf8')) as Record<string, unknown>;
+    const options = (raw.modelOptions && typeof raw.modelOptions === 'object' ? raw.modelOptions : {}) as Record<string, unknown>;
+    return {
+      provider: typeof raw.provider === 'string' ? raw.provider : null,
+      model: typeof raw.model === 'string' ? raw.model : null,
+      maxTokens: typeof options.maxTokens === 'number' ? options.maxTokens : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function cmdStatus(positionals: string[], flags: Flags): Promise<void> {
   const id = needWorkerId(positionals, 'status');
   const paths = workerPaths(stateDir(flags), id);
@@ -558,7 +573,8 @@ async function cmdStatus(positionals: string[], flags: Flags): Promise<void> {
     const lost = await markDaemonLost(paths, `state was ${state.state} but the daemon is not reachable`, daemon);
     if (lost.marked && lost.state) current = lost.state;
   }
-  const view = statusView(current, daemon);
+  const view: ReturnType<typeof statusView> & { model?: ReturnType<typeof workerModel> } = statusView(current, daemon);
+  view.model = workerModel(paths.configSnapshot);
   if (daemon.verdict === 'foreign_context') {
     view.accessContext = { error: accessContextMismatch(daemon), code: 'access_context_mismatch' };
     view.warnings = [...view.warnings, accessContextMismatch(daemon)];
@@ -590,6 +606,7 @@ async function cmdList(flags: Flags): Promise<void> {
     workers.push({
       workerId: id,
       label: state.label,
+      model: workerModel(paths.configSnapshot)?.model ?? null,
       state: state.state,
       revision: state.revision,
       attention: state.attention?.kind ?? null,
