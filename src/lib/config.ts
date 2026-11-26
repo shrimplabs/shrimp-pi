@@ -198,6 +198,9 @@ export function loadConfig(file: string): LoadedConfig {
   if (baseUrl && !/^https?:\/\//.test(baseUrl)) {
     throw new ConfigError(`${sourcePath}: baseUrl must be an http(s) URL`);
   }
+  if (process.platform === 'linux' && baseUrl && /\.local\.?$/i.test(new URL(baseUrl).hostname) && (raw.sandbox as Record<string, unknown> | undefined)?.mdns !== true) {
+    warnings.push(`baseUrl host ${new URL(baseUrl).hostname} is an mDNS name, which the Linux sandbox cannot resolve unless sandbox.mdns is true (or use the host's IP address)`);
+  }
   const modelOptions = isObj(raw.modelOptions ?? raw.model_options) ? (raw.modelOptions ?? raw.model_options) as Record<string, unknown> : {};
 
   const sandboxRaw = isObj(raw.sandbox) ? raw.sandbox : {};
@@ -251,6 +254,8 @@ export function loadConfig(file: string): LoadedConfig {
       // Minimal /etc (DNS, certificates, passwd) is the default; set minimalEtc false to
       // expose the whole /etc read-only.
       minimalEtc: sandboxRaw.minimalEtc !== false,
+      // Opt-in: let the worker resolve .local names through the host's Avahi daemon.
+      mdns: sandboxRaw.mdns === true,
     },
     limits: {
       toolFailureThreshold: optNumber(limitsRaw.toolFailureThreshold, 'limits.toolFailureThreshold', sourcePath, 1, 1000) ?? 5,

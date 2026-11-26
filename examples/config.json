@@ -22,6 +22,7 @@
     "mode": "bubblewrap",
     "bwrapPath": "bwrap",
     "minimalEtc": true,
+    "mdns": false,
     "extraRoBinds": [],
     "extraWritableBinds": []
   },

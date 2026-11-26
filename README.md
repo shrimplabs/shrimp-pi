@@ -161,6 +161,7 @@ the same installation and later edits only affect new workers. Every field
 | `envAllowlist` | Additional environment **names** the worker may inherit. Nothing else is copied. |
 | `sandbox.mode` | `bubblewrap` (Linux default), `seatbelt` (macOS default), `external` (with `sandbox.launcher`), or `disabled` (needs `--no-sandbox`). |
 | `sandbox.minimalEtc` | Default `true`: bind only DNS/cert/passwd files from `/etc`. `false` binds all of `/etc` read-only. |
+| `sandbox.mdns` | Default `false`. Linux only: `true` binds the host's Avahi socket (`/run/avahi-daemon/socket`) read-only so `.local` names such as `http://gpu-box.local:8080/v1` resolve inside the sandbox. Avahi also lets a client browse and publish services on the LAN, so it stays opt-in; an IP address in `baseUrl` needs nothing. |
 | `limits.*` | `toolFailureThreshold`, `waitTimeoutSeconds`, `maxWaitSeconds`, `runTimeoutSeconds`, `spawnAckSeconds`, `maxEvidence`. |
 
 ## What the worker can and cannot see

@@ -218,6 +218,7 @@ export type BridgeConfig = {
     extraRoBinds: string[];
     extraWritableBinds: string[];
     minimalEtc: boolean;
+    mdns: boolean;
   };
   limits: {
     toolFailureThreshold: number;

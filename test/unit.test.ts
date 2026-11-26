@@ -188,6 +188,17 @@ test('bwrap argv never carries environment values and never exposes host devices
     hostname: 'x',
   });
   assert.ok(minimalOff.join(' ').includes('--ro-bind-try /etc /etc'), 'minimalEtc false is opt-in');
+  assert.ok(!joined.includes('/run/avahi-daemon'), 'the Avahi socket is not exposed by default');
+  const mdnsOn = buildBwrapArgv({
+    bwrapPath: 'bwrap',
+    inner: ['true'],
+    cwd: '/',
+    binds: { writable: [], readOnly: [], mdns: true },
+    hostname: 'x',
+  });
+  const mdnsJoined = mdnsOn.join(' ');
+  assert.ok(mdnsJoined.includes('--ro-bind-try /run/avahi-daemon/socket /run/avahi-daemon/socket'), 'mdns true binds the Avahi socket');
+  assert.ok(mdnsJoined.indexOf('--dir /run') < mdnsJoined.indexOf('/run/avahi-daemon/socket'), 'the socket is bound after /run is created');
 });
 
 test('sandbox fails closed when bubblewrap is missing and disabled needs an explicit flag', () => {

@@ -25,7 +25,12 @@ export type SandboxBinds = {
   writable: string[];
   readOnly: string[];
   minimalEtc?: boolean;
+  /** bind the host Avahi socket so nss-mdns can resolve .local names (opt-in) */
+  mdns?: boolean;
 };
+
+/** Avahi's client socket, used by nss-mdns (the mdns4_minimal entry in nsswitch.conf). */
+export const AVAHI_SOCKET = '/run/avahi-daemon/socket';
 
 export type SandboxStatus = {
   mode: 'bubblewrap' | 'seatbelt' | 'external' | 'disabled';
@@ -194,6 +199,8 @@ export function buildBwrapArgv(opts: {
     for (const entry of MINIMAL_ETC) argv.push('--ro-bind-try', entry, entry);
   }
   argv.push('--dir', '/run');
+  // Read-only is enough: connect() on a socket is not refused by a read-only mount.
+  if (opts.binds.mdns === true) argv.push('--ro-bind-try', AVAHI_SOCKET, AVAHI_SOCKET);
   argv.push('--dir', '/mnt');
   argv.push('--dir', '/media');
 
@@ -255,7 +262,7 @@ export function wrapCommand(opts: {
     bwrapPath: (detected.path ?? config.sandbox.bwrapPath) as string,
     inner: opts.inner,
     cwd: opts.cwd,
-    binds: { writable: opts.binds.writable, readOnly, minimalEtc: config.sandbox.minimalEtc },
+    binds: { writable: opts.binds.writable, readOnly, minimalEtc: config.sandbox.minimalEtc, mdns: config.sandbox.mdns },
     hostname: opts.hostname,
   });
   return {
