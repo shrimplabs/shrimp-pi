@@ -550,3 +550,28 @@ def test_a_failed_spawn_puts_the_task_back_without_spending_an_attempt(ms, tmp_p
     assert tasks["t1"]["state"] == "ready" and tasks["t1"]["attempts"] == 0
     tg(ms, "start", "t1", "--copy")
     assert "no shrimp-pi worker on record" in tg(ms, "done", "t1", "--summary", "s", "--from-worker", rc=1)
+
+
+def test_the_next_milestone_never_builds_on_an_old_branch(ms):
+    add(ms, [{"title": "a"}])
+    tg(ms, "start", "t1")
+    commit(ms / ".milestone" / "wt" / "t1", "old.txt")
+    tg(ms, "done", "t1", "--summary", "old work")
+    commit(ms, "newer.txt")  # main moves on after the milestone
+    out = tg(ms, "archive")
+    assert "milestone/t1 -> milestone-old/" in out
+    tg(ms, "init", "Ship 0.4")
+    add(ms, [{"title": "b"}])
+    tg(ms, "start", "t1")
+    wt = ms / ".milestone" / "wt" / "t1"
+    assert sh(wt, "git", "rev-parse", "HEAD") == sh(ms, "git", "rev-parse", "main")
+
+
+def test_a_leftover_branch_is_set_aside_on_first_start(ms):
+    sh(ms, "git", "branch", "milestone/t1")  # e.g. archived before branches were moved
+    commit(ms, "newer.txt")
+    add(ms, [{"title": "a"}])
+    out = tg(ms, "start", "t1")
+    assert "starts fresh" in out
+    wt = ms / ".milestone" / "wt" / "t1"
+    assert sh(wt, "git", "rev-parse", "HEAD") == sh(ms, "git", "rev-parse", "main")

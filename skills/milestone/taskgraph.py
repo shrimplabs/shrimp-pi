@@ -380,6 +380,15 @@ def make_worktree(store: Store, g, t):
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         have = _git(store.root, "rev-parse", "--verify", "-q", f"refs/heads/{branch}").returncode == 0
+        if have and not t.get("branch"):
+            # The branch is left over from an earlier milestone (ids start again at
+            # t1): building on it would hand the agent old code. Keep it, renamed.
+            old = f"milestone-old/{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}/{t['id']}"
+            r = _git(store.root, "branch", "-m", branch, old)
+            if r.returncode != 0:
+                raise Bad(f"{branch} is left from an earlier milestone and could not be renamed: {r.stderr.strip()}")
+            print(f"note: an older {branch} was kept as {old}; {t['id']} starts fresh")
+            have = False
         args = ["worktree", "add", str(path), branch] if have else ["worktree", "add", str(path), "-b", branch]
         r = _git(store.root, *args)
         if r.returncode != 0:
@@ -935,8 +944,21 @@ def cmd_archive(store, a):
         g = store.load()
         if any(t["status"] == "running" for t in g["tasks"].values()):
             raise Bad("tasks are still running; finish or `release` them first")
-        dest = store.dir / "archive" / time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        dest = store.dir / "archive" / stamp
         dest.mkdir(parents=True)
+        # The next milestone numbers its tasks from t1 again: move this one's
+        # branches (the record of its work) out of the way, and its finished
+        # worktrees with them.
+        for tk in g["tasks"].values():
+            br, wt = tk.get("branch"), tk.get("worktree")
+            if not br or _git(store.root, "rev-parse", "--verify", "-q", f"refs/heads/{br}").returncode != 0:
+                continue
+            if wt and Path(wt).exists() and tk["status"] in CLOSED:
+                _git(store.root, "worktree", "remove", wt)
+            new = f"milestone-old/{stamp}/{tk['id']}"
+            r = _git(store.root, "branch", "-m", br, new)
+            print(f"{br} -> {new}" if r.returncode == 0 else f"{br}: kept ({r.stderr.strip()})")
         for name in ("graph.json", "events.jsonl", "logs"):
             if (store.dir / name).exists():
                 shutil.move(str(store.dir / name), str(dest / name))
