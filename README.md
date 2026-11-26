@@ -24,14 +24,14 @@ shrimp-pi CLI ──Unix socket──▶ worker daemon ──JSONL RPC──▶ 
   `/usr/bin/sandbox-exec` (Seatbelt). The default backend follows the host platform.
   Without a working native backend the bridge **refuses to start a worker** unless you pass
   `--no-sandbox` for a trusted caller, or configure an external sandbox launcher.
-- Pi **1.5.0**, tested here. Other versions need the same RPC commands, flags, and
+- Pi **1.6.1** (1.5.x also works), tested here. Other versions need the same RPC commands, flags, and
   `agent_settled` event; RPC mode alone is not sufficient compatibility.
 - A git repository with at least one commit.
 
 ## Install
 
 ```sh
-npm install -g @earendil-works/pi-coding-agent@1.5.0
+npm install -g @earendil-works/pi-coding-agent@1.6.1
 ln -s "$PWD/bin/shrimp-pi" ~/.local/bin/shrimp-pi    # any directory on PATH; npm link also works
 
 mkdir -p ~/.config/shrimp-pi

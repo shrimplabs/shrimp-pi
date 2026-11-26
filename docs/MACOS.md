@@ -6,8 +6,8 @@ The supervisor interface is unchanged for Codex, Claude, Vibe and other shell-ca
 
 ## Setup
 
-1. Install Node >=22.18, Git and Pi 1.5.0. Xcode Command Line Tools or Xcode supplies Apple Git.
-   Pi can be installed with `npm install -g @earendil-works/pi-coding-agent@1.5.0`.
+1. Install Node >=22.18, Git and Pi 1.6.1 (1.5.x also works). Xcode Command Line Tools or Xcode supplies Apple Git.
+   Pi can be installed with `npm install -g @earendil-works/pi-coding-agent@1.6.1`.
 2. Copy `examples/config.macos.json` to `~/.config/shrimp-pi/config.json` and set the endpoint
    and model. Pi is found from `pi` on `PATH` (Homebrew on Apple Silicon or Intel, nvm, or any
    npm prefix); set `piCommand` only to pin a specific installation.
@@ -27,6 +27,8 @@ configuration and credentials remain separate from the worker's generated agent 
 ## Verified on real hardware
 
 Tested on **a Mac mini, Apple Silicon, macOS 26.5**, Node 26.10.0, Pi 1.5.0 and Apple Git 2.50.1.
+Rechecked on 2026-11-26 with **Pi 1.6.1**: 71 tests passed, 4 Linux-only skipped, and a live worker
+(DeepSeek V4.1 Flash) completed a task, reported for review and stopped cleanly.
 The full suite passed **58 tests**, with **4 Linux-only tests skipped**. Native tests verify
 file-content isolation, symlink escapes, outbound IP versus Unix-socket access, network-free
 Git review, Git content-filter containment, daemon-death cleanup, recovery, and the full

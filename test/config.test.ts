@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { ConfigError, configSearchPaths, detectPi, resolveConfigPath } from '../src/lib/config.ts';
+import { ConfigError, configSearchPaths, detectPi, piVersionTested, resolveConfigPath } from '../src/lib/config.ts';
 import { FAKE_PI, NODE, cli, makeRepo, tempDir, writeTask, type Handle } from './helpers.ts';
 
 /** A fake global npm install of Pi: <prefix>/lib/node_modules/<pkg> plus a <prefix>/bin/pi symlink. */
@@ -119,4 +119,9 @@ test('spawn without any config explains every place it looked', () => {
     assert.equal(result.code, 1);
     assert.match(result.stderr, /no config found: pass --config <file>, set SHRIMP_PI_CONFIG, or create .*\.config\/shrimp-pi\/config\.json/);
   } finally { h.cleanup(); }
+});
+
+test('Pi 1.5.x and 1.6.x count as tested; other versions are surfaced', () => {
+  for (const v of ['1.5.0', '1.5.2', '1.6.0', '1.6.1']) assert.ok(piVersionTested(v), v);
+  for (const v of ['1.4.9', '1.7.0', '1.60.0', '2.0.0']) assert.ok(!piVersionTested(v), v);
 });

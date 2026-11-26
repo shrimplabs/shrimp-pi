@@ -103,6 +103,12 @@ export function resolveConfigPath(explicit: string | undefined, env: NodeJS.Proc
 }
 
 const PI_PACKAGE = '@earendil-works/pi-coding-agent';
+/** Pi minor versions this bridge has been run against (RPC commands, flags, agent_settled). */
+export const TESTED_PI_MINORS = ['1.5', '1.6'];
+
+export function piVersionTested(version: string): boolean {
+  return TESTED_PI_MINORS.some((minor) => version === minor || version.startsWith(`${minor}.`));
+}
 
 /**
  * The running Node as reached through PATH (e.g. /opt/homebrew/bin/node) rather than its
@@ -180,11 +186,11 @@ export function loadConfig(file: string): LoadedConfig {
   if ((raw.piCommand ?? raw.pi_command) === undefined) {
     detectedPi = detectPi();
     if (!detectedPi) {
-      throw new ConfigError(`${sourcePath}: no piCommand set and no Pi installation found (looked for "pi" on PATH and ${PI_PACKAGE} next to ${process.execPath}); install it with "npm install -g ${PI_PACKAGE}@1.5.0" or set piCommand`);
+      throw new ConfigError(`${sourcePath}: no piCommand set and no Pi installation found (looked for "pi" on PATH and ${PI_PACKAGE} next to ${process.execPath}); install it with "npm install -g ${PI_PACKAGE}@1.6.1" or set piCommand`);
     }
     piCommand = detectedPi.command;
-    if (detectedPi.version && !detectedPi.version.startsWith('1.5.')) {
-      warnings.push(`detected Pi ${detectedPi.version} at ${detectedPi.packageRoot}; shrimp-pi is tested with Pi 1.5.x`);
+    if (detectedPi.version && !piVersionTested(detectedPi.version)) {
+      warnings.push(`detected Pi ${detectedPi.version} at ${detectedPi.packageRoot}; shrimp-pi is tested with Pi ${TESTED_PI_MINORS.map((m) => `${m}.x`).join(' and ')}`);
     }
   } else {
     piCommand = reqStringArray(raw.piCommand ?? raw.pi_command, 'piCommand', sourcePath);

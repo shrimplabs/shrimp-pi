@@ -2,7 +2,8 @@
  * Pi RPC child: JSONL over stdin/stdout with strict LF framing, id correlation, backpressure
  * aware writes, stderr capture, and bounded escalation on shutdown.
  *
- * Protocol notes implemented here (verified against the installed pi 1.5.0 docs):
+ * Protocol notes implemented here (verified against the pi 1.5.0 docs, rechecked against 1.6.1:
+ * closing stdin now waits for pending work, which the stdin -> SIGTERM -> SIGKILL escalation allows):
  *  - one JSON object per line, terminated by LF; U+2028/U+2029 are legal inside JSON strings
  *    so readline must not be used (see framing.ts)
  *  - correlate responses by the request `id`, not by arrival order
